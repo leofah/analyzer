@@ -800,12 +800,26 @@ struct
 end
 
 (* This is the main array out of bounds check *)
-let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
+let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) (ask: VDQ.t) =
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.to_bool (Idx.lt v l) in (* check whether index is before the end of the array *)
     let idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero)) in (* check whether the index is non-negative *)
+
+    let size_type = longType in
+
+    let relational_idx_before_end = 
+      match e, idx_before_end with
+      | _, Some b -> Some b (* value analysis was able to determine the correct value of before_end *)
+      | Some iexp, None -> 
+        (* TODO relational check with ghost variable instead of random number *)
+        let check_exp = BinOp (Lt, iexp, Const (CInt( Cilint.cilint_of_int 10, IInt, None)), size_type) in
+        let in_bounds = VDQ.ID.to_bool (ask.eval_int check_exp) in
+        if M.tracing then M.trace "arrayoob" "asking for bound '%a'. Result '%s'" d_exp check_exp (BatOption.map_default Bool.to_string "None" in_bounds);
+        in_bounds
+      | _ -> None in
+
     (* For an explanation of the warning types check the Pull Request #255 *)
-    match idx_after_start, idx_before_end with
+    match idx_after_start, relational_idx_before_end with
     | Some true, Some true -> (* Certainly in bounds on both sides.*)
       ()
     | Some true, Some false -> (* The following matching differentiates the must and may cases*)
@@ -835,7 +849,7 @@ struct
   let domain_of_t _ = TrivialDomain
 
   let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
+    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v) ask);
     Base.get ask x (e, v)
   let set (ask: VDQ.t) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
@@ -879,7 +893,7 @@ struct
   let domain_of_t _ = PartitionedDomain
 
   let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
+    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v) ask);
     Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
@@ -933,7 +947,7 @@ struct
   let domain_of_t _ = UnrolledDomain
 
   let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
+    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v) ask);
     Base.get ask x (e, v)
   let set (ask: VDQ.t) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[]) l x = Base.make l x, l
@@ -1079,7 +1093,7 @@ struct
     in
 
     (* warn if index is (potentially) out of bounds *)
-    array_oob_check (module Idx) (Nulls.get_set Possibly, size) (e, i);
+    array_oob_check (module Idx) (Nulls.get_set Possibly, size) (e, i) ask;
     let nulls = match max_i with
       (* if no maximum number in index interval *)
       | None ->

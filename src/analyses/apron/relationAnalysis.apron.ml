@@ -13,6 +13,17 @@ open RelationDomain
 module M = Messages
 module VS = SetDomain.Make (CilType.Varinfo)
 
+
+module VarinfoMapping = struct
+  type t = CilType.Varinfo.t [@@deriving  eq, ord, hash]
+  let name_varinfo (v: varinfo) = v.vname ^ "__length"
+  let describe_varinfo (v: varinfo) (t: varinfo) = v.vname ^ "->" ^  name_varinfo t
+  let typ _ = longType
+end
+
+module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping)  (*ghost variables for VLA*)
+
+
 module SpecFunctor (Priv: RelationPriv.S) (RD: RelationDomain.RD) (PCU: RelationPrecCompareUtil.Util) =
 struct
   include Analyses.DefaultSpec
@@ -264,6 +275,24 @@ struct
     in
     if M.tracing then M.traceu "relation" "-> %a" D.pretty r;
     r
+
+  (* Add Array Length Ghost Variable*)
+  let vdecl (man: ((RD.t ,Priv.D.t) relcomponents_t, G.t,'a, V.t )man)  (e:varinfo) = 
+    (*track the initialization expression of VLA in a ghost variable *)
+    if GobConfig.get_bool "ana.arrayoob" then (
+      match e.vtype with
+      | TArray (_, Some exp, _)->
+        if M.tracing then M.trace "arrayoob" "initializieng Array: '%a', with length exp: '%a'" CilType.Varinfo.pretty e CilType.Exp.pretty exp;
+        let ghost_length = ArrayMap.to_varinfo e in
+        let st = {man.local with rel = RD.add_vars man.local.rel [RV.local ghost_length]} in (* add newly created variable to Environment  *)
+        let new_man =
+          { man with  local = st; global = man.global; sideg = man.sideg; ask = man.ask; node = man.node } in
+        let man' =  assign new_man (Var ghost_length, NoOffset) exp in
+        let new_man = { man with  local = man'; global = man.global; sideg = man.sideg; ask = man.ask; node = man.node } in
+        new_man.local
+      | _ -> man.local
+    )else
+      man.local
 
   let branch man e b =
     let st = man.local in
