@@ -77,6 +77,9 @@ let may_be_equal = eval_int_binop (module MayBool) Eq
 let may_be_less = eval_int_binop (module MayBool) Lt
 
 let find_single_array_len_ghost (found_ghosts: VS.t) =
-  match VS.elements found_ghosts with
+  match found_ghosts with
+  | `Top -> None;
+  | `Lifted _ ->
+    match VS.elements found_ghosts with
     | [v] -> Some v
     | _ -> None
