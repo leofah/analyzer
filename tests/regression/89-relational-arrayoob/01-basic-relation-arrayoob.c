@@ -2,7 +2,6 @@
 
 // Basic relational array out of bounce check
 
-#include <stdio.h>
 #include <stdlib.h>
 
 int main() {
