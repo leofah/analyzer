@@ -44,15 +44,19 @@ struct
     | `Top -> false
 end
 
+module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
+
 type eval_int = exp -> ID.t
 type may_point_to = exp -> AD.t
 type is_multiple = varinfo -> bool
+type find_array_len_ghost = varinfo -> VS.t
 
 (** Subset of queries used by the valuedomain, using a simpler representation. *)
 type t = {
   eval_int: eval_int;
   may_point_to: may_point_to;
   is_multiple: is_multiple;
+  find_array_len_ghost: find_array_len_ghost;
 }
 
 let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (eval_int: eval_int) e1 e2: Bool.t =
@@ -71,3 +75,8 @@ let may_be_equal = eval_int_binop (module MayBool) Eq
 
 (** Backwards-compatibility for former [MayBeLess] query. *)
 let may_be_less = eval_int_binop (module MayBool) Lt
+
+let find_single_array_len_ghost (found_ghosts: VS.t) =
+  match VS.elements found_ghosts with
+    | [v] -> Some v
+    | _ -> None

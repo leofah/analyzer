@@ -681,6 +681,10 @@ struct
     | Queries.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global man g
+    | Queries.FindArrayLenGhost v ->
+      let ghost_len = ArrayMap.to_varinfo v in
+      if M.tracing then M.trace "arrayoob" "found ghost length %a" CilType.Varinfo.pretty ghost_len;
+      VS.of_list [ghost_len]
     | _ -> Result.top q
 
 

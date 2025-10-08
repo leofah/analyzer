@@ -806,17 +806,21 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
     let idx_before_end = Idx.to_bool (Idx.lt v l) in (* check whether index is before the end of the array *)
     let idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero)) in (* check whether the index is non-negative *)
 
-    let size_type = longType in
-
     let relational_idx_before_end = 
       match e, idx_before_end, arr_varinfo with
       | _, Some b, _ -> Some b (* value analysis was able to determine the correct value of before_end *)
       | Some iexp, None, Some arr_var -> 
-        (* TODO relational check with ghost variable instead of random number *)
-        let check_exp = BinOp (Lt, iexp, Const (CInt( Cilint.cilint_of_int 10, IInt, None)), size_type) in
-        let in_bounds = VDQ.ID.to_bool (ask.eval_int check_exp) in
-        if M.tracing then M.trace "arrayoob" "asking for bound '%a' of array %a. Result '%s'" d_exp check_exp  CilType.Varinfo.pretty arr_var (BatOption.map_default Bool.to_string "None" in_bounds);
-        in_bounds
+        (* I would prefer to use ask.f but only the VDQ are available. So the VDQ is adapted to answer for FindArrayLenGhost *)
+        let found_ghost_opt = VDQ.find_single_array_len_ghost (ask.find_array_len_ghost arr_var) in
+        let res = match found_ghost_opt with
+          | None -> None
+          | Some found_ghost ->
+            let check_exp = BinOp (Lt, iexp, Lval(Var found_ghost, NoOffset), longType) in
+            if M.tracing then M.trace "arrayoob" "checking bound of array '%a': '%a'." CilType.Typ.pretty arr_var.vtype d_exp check_exp;
+            let in_bounds = VDQ.ID.to_bool (ask.eval_int check_exp) in
+            if M.tracing then M.trace "arrayoob" "checking upper bound of array '%s': '%a'. Result '%s'" (CilType.Varinfo.show arr_var) d_exp check_exp (BatOption.map_default Bool.to_string "None" in_bounds);
+            in_bounds
+          in res
       | _ -> None in
 
     (* For an explanation of the warning types check the Pull Request #255 *)
