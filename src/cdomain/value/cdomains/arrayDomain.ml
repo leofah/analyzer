@@ -815,8 +815,7 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
         let res = match found_ghost_opt with
           | None -> None
           | Some found_ghost ->
-            let check_exp = BinOp (Lt, iexp, Lval(Var found_ghost, NoOffset), longType) in
-            if M.tracing then M.trace "arrayoob" "checking bound of array '%a': '%a'." CilType.Typ.pretty arr_var.vtype d_exp check_exp;
+            let check_exp = BinOp (Lt, iexp, Lval(Var found_ghost, NoOffset), intType) in
             let in_bounds = VDQ.ID.to_bool (ask.eval_int check_exp) in
             if M.tracing then M.trace "arrayoob" "checking upper bound of array '%s': '%a'. Result '%s'" (CilType.Varinfo.show arr_var) d_exp check_exp (BatOption.map_default Bool.to_string "None" in_bounds);
             in_bounds

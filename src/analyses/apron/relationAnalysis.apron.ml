@@ -18,7 +18,7 @@ module VarinfoMapping = struct
   type t = CilType.Varinfo.t [@@deriving  eq, ord, hash]
   let name_varinfo (v: varinfo) = v.vname ^ "__length"
   let describe_varinfo (v: varinfo) (t: varinfo) = v.vname ^ "->" ^  name_varinfo t
-  let typ _ = longType
+  let typ _ = intType
 end
 
 module ArrayMap = RichVarinfo.BiVarinfoMap.Make(VarinfoMapping)  (*ghost variables for VLA*)
@@ -683,7 +683,6 @@ struct
       query_invariant_global man g
     | Queries.FindArrayLenGhost v ->
       let ghost_len = ArrayMap.to_varinfo v in
-      if M.tracing then M.trace "arrayoob" "found ghost length %a" CilType.Varinfo.pretty ghost_len;
       VS.of_list [ghost_len]
     | _ -> Result.top q
 
